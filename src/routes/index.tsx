@@ -215,6 +215,22 @@ async function killable<T>(
 }
 
 /**
+ * Insta Kill (and a superseded run, a closed tab, a timed-out request) is a
+ * deliberate cancellation, never a crash. Anything that recognises this shape
+ * must stop quietly: showing it as an error — or letting it escape as an
+ * unhandled rejection — is what blanked the page mid-run.
+ */
+function isCancellation(e: unknown): boolean {
+  const err = e as { name?: string; message?: string } | null;
+  if (!err) return false;
+  if (err.name === "AbortError" || err.name === "KilledError") return true;
+  const msg = typeof err.message === "string" ? err.message : String(e);
+  return /insta kill|killederror|cancell?ed|aborted|the operation was aborted|request timed out/i.test(
+    msg,
+  );
+}
+
+/**
  * A drawing round trip is never allowed to hang the lane forever. The server
  * retries a panel up to six times at 60s each, so anything past this ceiling is
  * a stuck request: the batch fails, the panels go back on the queue and another
