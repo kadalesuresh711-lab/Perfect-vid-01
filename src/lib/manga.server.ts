@@ -768,7 +768,7 @@ export async function writePrompts(
   console.log(
     `[prompts] DONE lines ${from}-${to} in ${Date.now() - t0}ms: ${built.length - empties}/${count} written, ${empties} empty`,
   );
-  return chainContinuity(built, all, wanted);
+  return chainContinuity(built, all, wanted, bible);
 }
 
 
@@ -895,9 +895,11 @@ export function chainContinuity(
   prompts: string[],
   all?: Segment[],
   wanted?: number[],
+  bible?: string,
 ): string[] {
   if (!all || !wanted || wanted.length !== prompts.length) return prompts;
   let active: string | null = null;
+  let previousPrompt: string | null = null;
   return prompts.map((prompt, i) => {
     if (!prompt.trim()) return prompt;
     const line = all[(wanted[i] as number) - 1]?.text ?? "";
@@ -905,22 +907,36 @@ export function chainContinuity(
     const declaresPlace = PLACE_CUES.test(line);
     if (!active) {
       active = here;
+      previousPrompt = prompt;
       return prompt;
     }
     if (declaresPlace) {
       // The line itself moves the story; trust the written setting.
       if (here) active = here;
+      previousPrompt = prompt;
       return prompt;
     }
-    if (here && here === active) return prompt;
     const fixed = here
-      ? prompt.replace(new RegExp(here.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), active)
+      ? here === active
+        ? prompt
+        : prompt.replace(new RegExp(here.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), active)
       : prompt;
-    return (
+    const previousCast = previousPrompt ? namedBibleEntries(previousPrompt, bible) : [];
+    const currentNames = new Set(
+      namedBibleEntries(fixed, bible).map((entry) => entry.name.toLocaleLowerCase()),
+    );
+    const listeners = hasPeople(fixed, bible)
+      ? previousCast.filter((entry) => !currentNames.has(entry.name.toLocaleLowerCase()))
+      : [];
+    const continuity =
       `${fixed}. Setting continuity: this beat happens in the very same ${active} as the ` +
       `previous panel, with the same walls, furniture, props and time of day; do not move the ` +
-      `story to a different place — only the characters' action, pose and camera angle change`
-    );
+      `story to a different place — only the characters' action, pose and camera angle change` +
+      (listeners.length
+        ? `. Continuing listeners remain visibly in frame: ${listeners.map((entry) => entry.name).join(", ")}`
+        : "");
+    previousPrompt = continuity;
+    return continuity;
   });
 }
 
@@ -1541,8 +1557,38 @@ function openingBeat(prompt: string): { lead: string; rest: string } {
   };
 }
 
-export function composeImagePrompt(prompt: string, bible?: string, line?: string): string {
-  const withCast = enforceLineCast(prompt, line, bible);
+function previousPanelLock(
+  prompt: string,
+  previousPrompt?: string,
+  bible?: string,
+  line?: string,
+): string {
+  if (!previousPrompt || !hasPeople(prompt, bible) || (line && PLACE_CUES.test(line))) return prompt;
+
+  const previousCast = namedBibleEntries(previousPrompt, bible);
+  const present = new Set(
+    namedBibleEntries(prompt, bible).map((entry) => entry.name.toLocaleLowerCase()),
+  );
+  const listeners = previousCast.filter((entry) => !present.has(entry.name.toLocaleLowerCase()));
+  const priorBeat = openingBeat(sanitizePrompt(previousPrompt)).lead;
+  return (
+    `${prompt}. Immediate previous-panel continuity lock: preserve the exact same physical location, ` +
+    `wall materials, window and door positions, furniture, props, lighting and time of day shown by these ` +
+    `reference facts only: ${clip(priorBeat, 300)}. Do not copy the previous action` +
+    (listeners.length
+      ? `. Keep the continuing ${listeners.map((entry) => entry.name).join(", ")} visibly in frame as listener${listeners.length > 1 ? "s" : ""}`
+      : "")
+  );
+}
+
+export function composeImagePrompt(
+  prompt: string,
+  bible?: string,
+  line?: string,
+  previousPrompt?: string,
+): string {
+  const continuous = previousPanelLock(prompt, previousPrompt, bible, line);
+  const withCast = enforceLineCast(continuous, line, bible);
   const fixed = enforceGender(sanitizePrompt(withCast), bible);
   const peopled = hasPeople(fixed, bible);
   const beat = openingBeat(fixed);
@@ -1622,8 +1668,9 @@ export async function generateImage(
   bible?: string,
   attempts = 6,
   line?: string,
+  previousPrompt?: string,
 ): Promise<string> {
-  const body = composeImagePrompt(prompt, bible, line).slice(0, 2000);
+  const body = composeImagePrompt(prompt, bible, line, previousPrompt).slice(0, 2000);
 
   let lastErr = "";
   for (let attempt = 0; attempt < Math.max(1, attempts); attempt++) {
@@ -1739,6 +1786,7 @@ export async function renderPanel(
   bible?: string,
   line?: string,
   timestamp?: string,
+  previousPrompt?: string,
 ): Promise<{
   url: string;
   prompt: string;
@@ -1768,7 +1816,15 @@ export async function renderPanel(
   for (let round = 0; round < 3; round++) {
     tries++;
     try {
-      const url = await generateImage(prompt, seed + round * 1861, slot + round, bible, 3, line);
+      const url = await generateImage(
+        prompt,
+        seed + round * 1861,
+        slot + round,
+        bible,
+        3,
+        line,
+        previousPrompt,
+      );
       return { url, prompt, level: 0, tries, rewritten };
     } catch (e) {
       if (e instanceof KilledError) throw e;
@@ -1794,6 +1850,7 @@ export async function renderPanel(
           bible,
           3,
           line,
+          previousPrompt,
         );
         return { url, prompt: softened, level: 1, tries, rewritten };
       } catch (e) {
@@ -1815,7 +1872,15 @@ export async function renderPanel(
     for (let round = 0; round < 3; round++) {
       tries++;
       try {
-        const url = await generateImage(plain, seed + 9109 + round * 613, slot + round, bible, 3, line);
+        const url = await generateImage(
+          plain,
+          seed + 9109 + round * 613,
+          slot + round,
+          bible,
+          3,
+          line,
+          previousPrompt,
+        );
         return { url, prompt: plain, level: 2, tries, rewritten };
       } catch (e) {
         if (e instanceof KilledError) throw e;

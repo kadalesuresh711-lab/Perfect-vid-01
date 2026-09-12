@@ -93,6 +93,7 @@ export const renderImage = createServerFn({ method: "POST" })
         bible: z.string().optional(),
         line: z.string().optional(),
         timestamp: z.string().optional(),
+        previousPrompt: z.string().optional(),
         slot: z.number().int().min(0).default(0),
         runAt: z.number().optional(),
       })
@@ -110,6 +111,7 @@ export const renderImage = createServerFn({ method: "POST" })
       data.bible,
       data.line,
       data.timestamp,
+      data.previousPrompt,
     );
     return { url, prompt, rewritten };
     }, signal);
@@ -133,6 +135,7 @@ export const renderBatch = createServerFn({ method: "POST" })
               slot: z.number().int().min(0).default(0),
               line: z.string().optional(),
               timestamp: z.string().optional(),
+              previousPrompt: z.string().optional(),
             }),
           )
           .min(1)
@@ -162,6 +165,7 @@ export const renderBatch = createServerFn({ method: "POST" })
             data.bible,
             job.line,
             job.timestamp,
+            job.previousPrompt,
           );
           return { index: job.index, url, prompt, rewritten };
         } catch (e) {
