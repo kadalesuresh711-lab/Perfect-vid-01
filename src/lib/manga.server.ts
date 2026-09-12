@@ -1581,6 +1581,16 @@ function previousPanelLock(
   );
 }
 
+function previousSettingAnchor(previousPrompt?: string, line?: string): string {
+  if (!previousPrompt || (line && PLACE_CUES.test(line))) return "";
+  const setting = detectSetting(previousPrompt);
+  const priorBeat = openingBeat(sanitizePrompt(previousPrompt)).lead;
+  return (
+    `same exact ${setting ?? "location"} as the immediately previous panel, preserving its wall materials, ` +
+    `window and door positions, furniture, props, lighting and time of day; continuity reference: ${clip(priorBeat, 220)}`
+  );
+}
+
 export function composeImagePrompt(
   prompt: string,
   bible?: string,
@@ -1593,6 +1603,7 @@ export function composeImagePrompt(
   const peopled = hasPeople(fixed, bible);
   const beat = openingBeat(fixed);
   const anchor = peopled ? characterAnchor(fixed, bible) : "";
+  const settingAnchor = previousSettingAnchor(previousPrompt, line);
   // Character lock only matters when someone is actually in frame.
   const lock = peopled ? clip(characterLock(fixed, bible), LOCK_BUDGET) : "";
 
@@ -1603,6 +1614,7 @@ export function composeImagePrompt(
   const parts = [
     `${STYLE_LEAD} ${beat.lead}`,
     anchor,
+    settingAnchor,
     clip(beat.rest, Math.max(120, SCENE_BUDGET - beat.lead.length)),
     lock,
     peopled
