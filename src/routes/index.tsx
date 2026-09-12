@@ -909,7 +909,16 @@ function Index() {
       tick(true);
 
       if (!cancelRef.current && queue.length > 0) {
-        await Promise.all(Array.from({ length: IMAGE_CONCURRENCY }, () => worker()));
+        // allSettled, never all: when one lane is cancelled the others must
+        // still be awaited here, otherwise their later rejection escapes as an
+        // unhandled error and blanks the page.
+        const lanes = await Promise.allSettled(
+          Array.from({ length: IMAGE_CONCURRENCY }, () => worker()),
+        );
+        const fatal = lanes.find(
+          (l) => l.status === "rejected" && !isCancellation(l.reason),
+        ) as PromiseRejectedResult | undefined;
+        if (fatal) throw fatal.reason;
       }
 
 
