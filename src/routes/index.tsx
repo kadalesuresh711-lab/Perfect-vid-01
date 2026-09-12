@@ -1108,6 +1108,10 @@ function Index() {
       await redrawShot(target, record, index + 1, freshPrompt);
       await saveProgress(key, { script, bible, shots: list, state: "done" });
     } catch (e) {
+      if (isCancellation(e)) {
+        record(index, { status: "waiting", error: undefined });
+        return;
+      }
       record(index, { status: "error", error: e instanceof Error ? e.message : String(e) });
       await saveProgress(key, { script, bible, shots: list, state: "error" });
     } finally {
