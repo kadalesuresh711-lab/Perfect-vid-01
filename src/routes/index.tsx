@@ -368,6 +368,7 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
 }
 
 function Index() {
+  useSwallowCancellations();
   const analyze = useServerFn(analyzeScript);
 
   const draw = useServerFn(renderImage);
