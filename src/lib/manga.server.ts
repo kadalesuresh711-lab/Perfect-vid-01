@@ -469,6 +469,13 @@ export async function writePrompts(
   from: number,
   to: number,
   requested?: number[],
+  /**
+   * Prompts the user has already rejected, keyed by line number. A retry that
+   * only changes the seed redraws the same wrong idea, so the rejected wording
+   * is handed back to the writer with an explicit instruction to reinterpret
+   * the line differently.
+   */
+  rejected?: Record<number, string>,
 ): Promise<string[]> {
   const wanted = requested?.length
     ? [...new Set(requested)].filter((n) => n >= from && n <= to).sort((a, b) => a - b)
