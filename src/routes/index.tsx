@@ -719,6 +719,7 @@ function Index() {
                 if (hasPrompt(slot)) {
                   const prompt = (slot as string).trim();
                   record(s.index, { prompt, status: "waiting", error: undefined });
+                  if (!s.url) queue.push({ seg: s as Shot, prompt, attempts: 0 });
                   return;
                 }
                 record(s.index, { prompt: undefined, status: "error", error: "prompt missing" });
