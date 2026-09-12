@@ -225,11 +225,14 @@ const PROMPT_SYSTEM =
   "RULES:\n" +
   "- ONE LINE = ONE IMAGE (absolute): exactly one prompt per requested number, in the same order, never merged, never " +
   "split, never skipped, never a placeholder. Each prompt must be visibly DIFFERENT from its neighbours.\n" +
-  "- LITERAL SUBJECT (the most important rule): draw the subject of THAT line and nothing else. If the line is " +
-  "narration, exposition, history or backstory about demons, a massacre, a city, an army, a special force, a god, a " +
-  "war, a crowd or a phenomenon, then the image IS that thing, shown in ITS OWN place and time — demons attacking " +
-  "Busan becomes demons attacking Busan; soldiers mobilising becomes soldiers mobilising. Never fall back on the " +
-  "main characters standing somewhere just because the previous line was there.\n" +
+  "- LITERAL SUBJECT (the most important rule): draw the visible event happening at THAT timestamp and nothing else. " +
+  "First classify the line. If a named person says, tells, explains, warns, asks, answers, thinks, remembers or learns " +
+  "information, show that present speaker/listener interaction and its emotion — DO NOT illustrate nouns inside their " +
+  "speech or thought as if those events are happening now. For example, a woman warning someone about an army shows " +
+  "the woman warning them in the established room, not a lineup of soldiers. Only draw demons, a massacre, a city, " +
+  "an army, a war or a past event directly when the timestamp explicitly presents it as visible action, a clearly " +
+  "introduced flashback, or detached historical narration with no present speaker. Never replace a conversation with " +
+  "the topic being discussed.\n" +
   "- SCENE CONTINUITY: default to the same location, time and active cast as the previous line. Change them ONLY when " +
   "the current line explicitly names a different location/time/cast or clearly begins a flashback, memory, dream or " +
   "separate narrated event. Keep continuing actions spatially coherent: the same room layout, doors, furniture and " +

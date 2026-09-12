@@ -100,11 +100,9 @@ const SAMPLE = `(0:00)Henan की कहानी असुरा का उद
 /**
  * Script lines written per prompt pass.
  *
- * The model reads the ENTIRE script on every pass and writes this many prompts
- * at a time. Large passes are intentional: writing many neighbouring lines in a
- * single answer keeps characters, place names and wording consistent across the
- * panels. Server calls therefore allow long, high-output requests instead of
- * splitting work into small batches.
+ * The model receives broad surrounding context but writes only a small group at
+ * a time. This keeps it attentive to each timestamp while the image workers can
+ * begin immediately after the first group arrives.
  */
 // Smaller groups keep the writer focused on each timestamp. Drawing still
 // starts after the first group, so this improves fidelity without restoring the
@@ -137,7 +135,10 @@ const PREVIEW_LIMIT = 60;
 function scriptKey(script: string): string {
   let h = 0;
   for (let i = 0; i < script.length; i++) h = (Math.imul(31, h) + script.charCodeAt(i)) | 0;
-  return `manga:${script.length}:${h}`;
+  // Bump whenever prompt semantics change. Without this, IndexedDB restores old
+  // bad prompts and images for the same script, making a quality fix appear to
+  // have done nothing even after starting generation again.
+  return `manga:q3:${script.length}:${h}`;
 }
 
 type Saved = SavedRun<Shot>;
