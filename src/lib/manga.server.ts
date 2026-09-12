@@ -614,6 +614,27 @@ export async function writePrompts(
     }
   }
 
+  // ACCURACY AUDIT (this is what Hindi/Hinglish lines never had). The word
+  // overlap gate above can only judge Latin-script lines, so a Hindi line's
+  // prompt used to be accepted unchecked — a prompt that drew soldiers for a
+  // conversation looked exactly as valid as a correct one. Every written
+  // prompt in the batch is now read back against its OWN line and corrected
+  // in a single extra request.
+  if (byNumber.size > 0) {
+    const t2 = Date.now();
+    try {
+      const fixes = await auditPrompts(bible, all, wanted, byNumber);
+      for (const [n, text] of fixes) byNumber.set(n, text);
+      console.log(
+        `[prompts] audit ${from}-${to}: ${fixes.size} corrected in ${Date.now() - t2}ms`,
+      );
+    } catch (e) {
+      if (e instanceof KilledError) throw e;
+      console.error(`[prompts] audit skipped for ${from}-${to}:`, e instanceof Error ? e.message : e);
+    }
+  }
+
+
   // Duplicate guard: two timestamps must never share one written prompt, or
   // one line's picture ends up standing in for another moment entirely.
   const seen = new Map<string, number>();
