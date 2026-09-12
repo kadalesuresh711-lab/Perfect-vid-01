@@ -1079,7 +1079,8 @@ function Index() {
       await saveProgress(key, { script, bible, shots: list, state: "done" });
       setNote(`Retry finished · ${ok}/${targets.length} panels fixed.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (isCancellation(e)) setNote("Stopped. Panels already fixed are kept.");
+      else setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPhase("done");
     }
