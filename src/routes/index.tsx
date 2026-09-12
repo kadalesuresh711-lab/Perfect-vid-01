@@ -106,7 +106,10 @@ const SAMPLE = `(0:00)Henan की कहानी असुरा का उद
  * panels. Server calls therefore allow long, high-output requests instead of
  * splitting work into small batches.
  */
-const PROMPT_RANGE = 20;
+// Smaller groups keep the writer focused on each timestamp. Drawing still
+// starts after the first group, so this improves fidelity without restoring the
+// old "wait for every prompt" behaviour.
+const PROMPT_RANGE = 8;
 
 /**
  * Image pipeline shape: TEN Pixazo keys, THREE images per key at a time.
