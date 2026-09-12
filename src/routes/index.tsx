@@ -215,6 +215,37 @@ async function killable<T>(
 }
 
 /**
+ * Insta Kill (and a superseded run, a closed tab, a timed-out request) is a
+ * deliberate cancellation, never a crash. Anything that recognises this shape
+ * must stop quietly: showing it as an error — or letting it escape as an
+ * unhandled rejection — is what blanked the page mid-run.
+ */
+function isCancellation(e: unknown): boolean {
+  const err = e as { name?: string; message?: string } | null;
+  if (!err) return false;
+  if (err.name === "AbortError" || err.name === "KilledError") return true;
+  const msg = typeof err.message === "string" ? err.message : String(e);
+  return /insta kill|killederror|cancell?ed|aborted|the operation was aborted|request timed out/i.test(
+    msg,
+  );
+}
+
+/**
+ * Final safety net. Dozens of requests are in flight when Insta Kill is
+ * pressed; a lane that rejects after its owner has already stopped listening
+ * would otherwise reach the browser as an uncaught error and blank the page.
+ */
+function useSwallowCancellations() {
+  useEffect(() => {
+    const onRejection = (ev: PromiseRejectionEvent) => {
+      if (isCancellation(ev.reason)) ev.preventDefault();
+    };
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => window.removeEventListener("unhandledrejection", onRejection);
+  }, []);
+}
+
+/**
  * A drawing round trip is never allowed to hang the lane forever. The server
  * retries a panel up to six times at 60s each, so anything past this ceiling is
  * a stuck request: the batch fails, the panels go back on the queue and another
@@ -337,6 +368,7 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
 }
 
 function Index() {
+  useSwallowCancellations();
   const analyze = useServerFn(analyzeScript);
 
   const draw = useServerFn(renderImage);
@@ -855,7 +887,9 @@ function Index() {
             );
             // Insta Kill / a superseded run is cancellation for the whole
             // batch: stop, never re-queue the panels as ordinary failures.
-            if (/Insta Kill|cancelled|KilledError/i.test(msg) || !isCurrentRun()) {
+            if (isCancellation(e) || !isCurrentRun()) {
+              cancelRef.current = true;
+              queue.length = 0;
               return; // the finally below still releases the slot
             }
             group.forEach((g) => requeue(g, msg));
@@ -891,7 +925,16 @@ function Index() {
       tick(true);
 
       if (!cancelRef.current && queue.length > 0) {
-        await Promise.all(Array.from({ length: IMAGE_CONCURRENCY }, () => worker()));
+        // allSettled, never all: when one lane is cancelled the others must
+        // still be awaited here, otherwise their later rejection escapes as an
+        // unhandled error and blanks the page.
+        const lanes = await Promise.allSettled(
+          Array.from({ length: IMAGE_CONCURRENCY }, () => worker()),
+        );
+        const fatal = lanes.find(
+          (l) => l.status === "rejected" && !isCancellation(l.reason),
+        ) as PromiseRejectedResult | undefined;
+        if (fatal) throw fatal.reason;
       }
 
 
@@ -910,6 +953,18 @@ function Index() {
       );
     } catch (e) {
       if (!isCurrentRun()) return;
+      if (isCancellation(e)) {
+        // Stopping on purpose keeps everything already generated and simply
+        // ends the run — it is not a failure and must not clear the page.
+        if (list.length > 0) {
+          const data = { script: sourceScript, bible: b, shots: list, state: "stopped" as const };
+          activeRunRef.current = { key, data };
+          await saveProgress(key, data);
+        }
+        setPhase("done");
+        setNote("Stopped. Everything already generated is kept — press retry to continue.");
+        return;
+      }
       if (list.length > 0) {
         const data = { script: sourceScript, bible: b, shots: list, state: "error" as const };
         activeRunRef.current = { key, data };
@@ -1040,7 +1095,8 @@ function Index() {
       await saveProgress(key, { script, bible, shots: list, state: "done" });
       setNote(`Retry finished · ${ok}/${targets.length} panels fixed.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (isCancellation(e)) setNote("Stopped. Panels already fixed are kept.");
+      else setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPhase("done");
     }
@@ -1068,6 +1124,10 @@ function Index() {
       await redrawShot(target, record, index + 1, freshPrompt);
       await saveProgress(key, { script, bible, shots: list, state: "done" });
     } catch (e) {
+      if (isCancellation(e)) {
+        record(index, { status: "waiting", error: undefined });
+        return;
+      }
       record(index, { status: "error", error: e instanceof Error ? e.message : String(e) });
       await saveProgress(key, { script, bible, shots: list, state: "error" });
     } finally {
