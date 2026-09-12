@@ -386,6 +386,74 @@ function contextFor(all: Segment[], full: string, want: number[]): string {
     : windowed;
 }
 
+const AUDIT_SYSTEM =
+  "You are a storyboard accuracy checker. You receive script lines (Hindi, Hinglish or English) each paired with the " +
+  "image prompt written for it, plus the character bible. For EACH numbered item decide whether the prompt draws " +
+  "THAT line's own moment.\n" +
+  "A prompt is WRONG when: it draws a noun that is only MENTIONED inside speech or thought (an army, soldiers, " +
+  "demons, a war, a crowd, a city, a past event) instead of the present speaker and listener; it shows an empty " +
+  "place, scenery or strangers while the line is someone speaking, thinking or reacting; it shows the wrong people, " +
+  "the wrong gender/age, or a different location than the surrounding lines establish; or it draws a different " +
+  "timestamp's event.\n" +
+  "A prompt is RIGHT when the people in frame, their action and the place match this line's own moment — for a " +
+  "spoken or inner line that means the speaker and listener in the established place, with the emotion on their " +
+  "faces and bodies.\n" +
+  "Reply with ONE plain line per item: the item's number, then ') ', then either exactly OK, or a complete corrected " +
+  "English image prompt of 42-58 words that fixes the fault (exact visible action, named cast with bible traits, and " +
+  "place in the FIRST sentence, then 4-6 environment details, camera angle and natural lighting; no art style, no " +
+  "text or writing in frame). Never output explanations, JSON, quotes or blank lines.";
+
+/**
+ * Reads every written prompt back against its own script line and returns the
+ * corrections.
+ *
+ * This is the check Hindi/Hinglish lines never received: `mentionsLine` can
+ * only compare Latin words, so a non-English line's prompt was accepted no
+ * matter what it depicted. Without this, a prompt that turned a warning about
+ * an army into a picture of soldiers was indistinguishable from a correct one,
+ * and re-rolling it only redrew the same wrong idea.
+ */
+async function auditPrompts(
+  bible: string,
+  all: Segment[],
+  wanted: number[],
+  written: Map<number, string>,
+): Promise<Map<number, string>> {
+  const items = wanted.filter((n) => written.has(n));
+  const out = new Map<number, string>();
+  if (items.length === 0) return out;
+
+  const listing = items
+    .map((n) => {
+      const s = all[n - 1] as Segment;
+      const before = all[n - 2]?.text?.trim();
+      return (
+        `${n}) SCRIPT LINE [${s.start}s]: ${s.text}\n` +
+        (before ? `   PREVIOUS LINE (establishes place and people): ${before.slice(0, 300)}\n` : "") +
+        `   PROMPT WRITTEN: ${clip(written.get(n) as string, 700)}`
+      );
+    })
+    .join("\n\n");
+
+  const raw = await textChat(
+    AUDIT_SYSTEM,
+    `CHARACTER BIBLE:\n${bible || "(none)"}\n\nITEMS TO CHECK (${items.length}):\n${listing}\n\n` +
+      `Answer with exactly ${items.length} lines, numbered ${items.join(", ")}.`,
+    { temperature: 0.2, maxOutputTokens: Math.min(16_000, 500 + items.length * 160), timeoutMs: 180_000, attempts: 1 },
+  );
+
+  const parsed = parseNumberedList(stripFences(raw), all.length);
+  parsed.forEach((v, idx) => {
+    const n = idx + 1;
+    if (typeof v !== "string" || !written.has(n)) return;
+    const text = v.trim();
+    if (!text || /^ok\b/i.test(text) || text.length < 40) return;
+    out.set(n, sanitizePrompt(enforceTimestampCast(text, all, n, bible)));
+  });
+  return out;
+}
+
+
 /**
  * Writes image prompts for lines `from`..`to` (1-based, inclusive).
  *
