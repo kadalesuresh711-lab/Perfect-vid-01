@@ -285,11 +285,13 @@ const PROMPT_SYSTEM =
   "character feminine (or a female one masculine) just because they share the frame with the opposite gender.\n" +
   "- HEAD COUNT: state explicitly how many people are in frame and that nobody else is present.\n" +
   "- Exactly one scene, one moment, one instance of each character. Never ask for multiple panels, insets or collages.\n" +
-  "- NO-CHARACTER LINES (critical): if the line describes only a place, an object, the sky, weather or a phenomenon and " +
-  "involves no person, the prompt MUST be a pure environment shot with NOBODY in it. Start it with 'Empty environment " +
-  "shot, no people:'. Never add a silhouette, an onlooker or a main character just to fill the frame.\n" +
-  "- CROWD LINES: if the line says many people, everyone, a crowd, an army, soldiers or people running, show that " +
-  "crowd or force, made of unnamed people who are not the main cast.\n" +
+  "- NO-CHARACTER LINES (critical): ONLY when the line is kind (B) AND describes just a place, an object, the sky, " +
+  "weather or a phenomenon with no person present, the prompt is a pure environment shot with NOBODY in it, starting " +
+  "with 'Empty environment shot, no people:'. A line that is someone speaking or thinking is NEVER an empty shot — " +
+  "an empty courtyard, empty road or empty field must never stand in for a conversation.\n" +
+  "- CROWD LINES: a crowd, army, soldiers or running people are drawn ONLY when the line is kind (B) and states they " +
+  "are visibly there in this moment. If they are merely mentioned, feared, remembered or talked about, keep the " +
+  "present speaker and listener in frame and show nobody else.\n" +
   "- NO TEXT: never describe text, letters, words, numbers, signs, posters, banners, newspapers, book pages, screens " +
   "with writing, labels or logos. Show the OBJECT and the reaction instead, never the writing.\n" +
   "- SHORT / NEARLY EMPTY LINES (critical): some lines are very short — a shout, a name, one word, a reaction, or a " +
