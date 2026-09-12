@@ -910,8 +910,9 @@ export function chainContinuity(
       previousPrompt = prompt;
       return prompt;
     }
-    if (declaresPlace) {
-      // The line itself moves the story; trust the written setting.
+    if (declaresPlace && here && here !== active) {
+      // A place word alone is not a move ("still in the room" must retain the
+      // room). Only a newly detected setting may break the previous lock.
       if (here) active = here;
       previousPrompt = prompt;
       return prompt;
@@ -1563,7 +1564,13 @@ function previousPanelLock(
   bible?: string,
   line?: string,
 ): string {
-  if (!previousPrompt || !hasPeople(prompt, bible) || (line && PLACE_CUES.test(line))) return prompt;
+  if (!previousPrompt || !hasPeople(prompt, bible)) return prompt;
+  const previousSetting = detectSetting(previousPrompt);
+  const currentSetting = detectSetting(prompt);
+  const genuineMove =
+    Boolean(line && PLACE_CUES.test(line)) &&
+    Boolean(previousSetting && currentSetting && previousSetting !== currentSetting);
+  if (genuineMove) return prompt;
 
   const previousCast = namedBibleEntries(previousPrompt, bible);
   const present = new Set(
@@ -1582,8 +1589,13 @@ function previousPanelLock(
 }
 
 function previousSettingAnchor(previousPrompt?: string, line?: string): string {
-  if (!previousPrompt || (line && PLACE_CUES.test(line))) return "";
+  if (!previousPrompt) return "";
   const setting = detectSetting(previousPrompt);
+  const currentSetting = detectSetting(line ?? "");
+  const genuineMove =
+    Boolean(line && PLACE_CUES.test(line)) &&
+    Boolean(setting && currentSetting && setting !== currentSetting);
+  if (genuineMove) return "";
   const priorBeat = openingBeat(sanitizePrompt(previousPrompt)).lead;
   return (
     `same exact ${setting ?? "location"} as the immediately previous panel, preserving its wall materials, ` +
