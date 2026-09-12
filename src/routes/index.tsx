@@ -937,6 +937,18 @@ function Index() {
       );
     } catch (e) {
       if (!isCurrentRun()) return;
+      if (isCancellation(e)) {
+        // Stopping on purpose keeps everything already generated and simply
+        // ends the run — it is not a failure and must not clear the page.
+        if (list.length > 0) {
+          const data = { script: sourceScript, bible: b, shots: list, state: "stopped" as const };
+          activeRunRef.current = { key, data };
+          await saveProgress(key, data);
+        }
+        setPhase("done");
+        setNote("Stopped. Everything already generated is kept — press retry to continue.");
+        return;
+      }
       if (list.length > 0) {
         const data = { script: sourceScript, bible: b, shots: list, state: "error" as const };
         activeRunRef.current = { key, data };
