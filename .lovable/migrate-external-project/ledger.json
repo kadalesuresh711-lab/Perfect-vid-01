@@ -1,0 +1,15 @@
+{
+  "source": "https://github.com/kadalesuresh711-lab/promptperfect-creations.git",
+  "capabilities": [
+    {"capability":"application code and interface","source":"public GitHub repository","outcome":"preserve","status":"inspected","next_action":"copy and verify"},
+    {"capability":"timestamped script parsing and storyboard workflow","source":"repository","outcome":"preserve and repair","status":"inspected","next_action":"migrate and correct prompt/image quality logic"},
+    {"capability":"Pixazo image generation","source":"repository plus supplied credentials","outcome":"preserve","status":"inspected","next_action":"store credentials securely and verify a real request"},
+    {"capability":"Agnes AI prompt generation","source":"repository plus supplied credential","outcome":"preserve","status":"inspected","next_action":"store credential securely and verify a real request"},
+    {"capability":"browser-saved progress and video export","source":"repository","outcome":"preserve","status":"inspected","next_action":"migrate and browser-test"},
+    {"capability":"database records","source":"none detected","outcome":"not applicable","status":"verified","next_action":"none"},
+    {"capability":"authentication","source":"none detected","outcome":"not applicable","status":"verified","next_action":"none"},
+    {"capability":"secret exposure cleanup","source":"credentials committed in README and pasted in chat","outcome":"remove from project files and use server-only secrets","status":"pending","next_action":"sanitize README and configure runtime secrets"},
+    {"capability":"production cutover","source":"new Lovable project","outcome":"defer","status":"pending","next_action":"publish when requested"},
+    {"capability":"verification","source":"local preview and live provider calls","outcome":"required","status":"pending","next_action":"test mobile workflow and provider responses"}
+  ]
+}
