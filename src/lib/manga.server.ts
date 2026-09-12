@@ -225,26 +225,31 @@ const PROMPT_SYSTEM =
   "RULES:\n" +
   "- ONE LINE = ONE IMAGE (absolute): exactly one prompt per requested number, in the same order, never merged, never " +
   "split, never skipped, never a placeholder. Each prompt must be visibly DIFFERENT from its neighbours.\n" +
-  "- LITERAL SUBJECT (the most important rule): draw the visible event happening at THAT timestamp and nothing else. " +
-  "First classify the line. If a named person says, tells, explains, warns, asks, answers, thinks, remembers or learns " +
-  "information, show that present speaker/listener interaction and its emotion — DO NOT illustrate nouns inside their " +
-  "speech or thought as if those events are happening now. For example, a woman warning someone about an army shows " +
-  "the woman warning them in the established room, not a lineup of soldiers. Only draw demons, a massacre, a city, " +
-  "an army, a war or a past event directly when the timestamp explicitly presents it as visible action, a clearly " +
-  "introduced flashback, or detached historical narration with no present speaker. Never replace a conversation with " +
-  "the topic being discussed.\n" +
+  "- STEP 1 — CLASSIFY THE LINE BEFORE WRITING ANYTHING. Every line is exactly ONE of two kinds, and this single " +
+  "decision overrides every other rule below:\n" +
+  "   (A) SPOKEN / THOUGHT / NARRATED-BY-A-PRESENT-PERSON. The line is a character speaking, asking, answering, " +
+  "warning, explaining, suspecting, fearing, doubting, remembering, realising or thinking. This is the DEFAULT and " +
+  "covers most lines. The image shows ONLY the present speaker and listener in the established location, with the " +
+  "posture, hands, eyes, eyebrows and mouth that carry the emotion of what is said. The NOUNS INSIDE the speech or " +
+  "thought — army, soldiers, demons, war, crowd, city, betrayal, the past, a plan, a danger — are NEVER drawn. They " +
+  "are the topic, not the picture. A woman warning a man about an army = the woman warning the man in that room. " +
+  "A character fearing betrayal = that character's face and body showing fear where they stand. Abstract lines about " +
+  "knowledge, suspicion, fear, betrayal or inner thought are ALWAYS kind (A): if there is nothing new to show, hold " +
+  "the same room and people and change only the expression and the camera.\n" +
+  "   (B) VISIBLE EVENT. The line's own narration states something that is physically happening on screen now (or is " +
+  "explicitly opened as a flashback/dream, or is detached historical narration with NO present speaker). Only then " +
+  "draw that event itself — an army only when the line says the army is there and being seen, a crowd only when the " +
+  "line says people are actually gathered or running now, a memory only when the line clearly enters the memory.\n" +
+  "   If you are unsure which kind a line is, it is kind (A). Never replace a conversation with the topic being " +
+  "discussed, and never turn a mention into a scene.\n" +
   "- SCENE CONTINUITY: default to the same location, time and active cast as the previous line. Change them ONLY when " +
   "the current line explicitly names a different location/time/cast or clearly begins a flashback, memory, dream or " +
   "separate narrated event. Keep continuing actions spatially coherent: the same room layout, doors, furniture and " +
   "character positions should remain recognisable while pose, expression and camera angle advance.\n" +
-  "crowds, villagers, strangers or unnamed people show THOSE people — never insert a main character into them.\n" +
   "- CAST RESOLUTION: put every bible character named in the current line in frame. Also retain a bible character when " +
   "the current line uses a pronoun or continues that character's action from the preceding line. Write every resolved " +
-  "character by NAME and repeat their sheet traits. Lines explicitly about soldiers, demons, crowds, villagers, " +
-  "strangers or unnamed people show those people instead of unrelated main characters.\n" +
-  "crowds, villagers, strangers or unnamed people show THOSE people — never insert a main character into them.\n" +
-  "- A memory, flashback, dream or story-within-the-story is drawn as the remembered event itself, in the place and " +
-  "time it happened, not as someone remembering it.\n" +
+  "character by NAME and repeat their sheet traits. Only a kind (B) line that is itself about soldiers, demons, " +
+  "crowds, villagers or strangers shows those unnamed people, and then the main cast is not inserted among them.\n" +
   "- LIGHTING & COLOUR: take the lighting ONLY from the line — daytime is bright natural daylight, an indoor scene is " +
   "a well-lit room, a night scene is a clearly lit night with visible detail. Never add darkness, gloom, shadowy " +
   "mystery, fog or noir the line does not state. Name the light source and the dominant colours.\n" +
@@ -280,11 +285,13 @@ const PROMPT_SYSTEM =
   "character feminine (or a female one masculine) just because they share the frame with the opposite gender.\n" +
   "- HEAD COUNT: state explicitly how many people are in frame and that nobody else is present.\n" +
   "- Exactly one scene, one moment, one instance of each character. Never ask for multiple panels, insets or collages.\n" +
-  "- NO-CHARACTER LINES (critical): if the line describes only a place, an object, the sky, weather or a phenomenon and " +
-  "involves no person, the prompt MUST be a pure environment shot with NOBODY in it. Start it with 'Empty environment " +
-  "shot, no people:'. Never add a silhouette, an onlooker or a main character just to fill the frame.\n" +
-  "- CROWD LINES: if the line says many people, everyone, a crowd, an army, soldiers or people running, show that " +
-  "crowd or force, made of unnamed people who are not the main cast.\n" +
+  "- NO-CHARACTER LINES (critical): ONLY when the line is kind (B) AND describes just a place, an object, the sky, " +
+  "weather or a phenomenon with no person present, the prompt is a pure environment shot with NOBODY in it, starting " +
+  "with 'Empty environment shot, no people:'. A line that is someone speaking or thinking is NEVER an empty shot — " +
+  "an empty courtyard, empty road or empty field must never stand in for a conversation.\n" +
+  "- CROWD LINES: a crowd, army, soldiers or running people are drawn ONLY when the line is kind (B) and states they " +
+  "are visibly there in this moment. If they are merely mentioned, feared, remembered or talked about, keep the " +
+  "present speaker and listener in frame and show nobody else.\n" +
   "- NO TEXT: never describe text, letters, words, numbers, signs, posters, banners, newspapers, book pages, screens " +
   "with writing, labels or logos. Show the OBJECT and the reaction instead, never the writing.\n" +
   "- SHORT / NEARLY EMPTY LINES (critical): some lines are very short — a shout, a name, one word, a reaction, or a " +
@@ -379,6 +386,74 @@ function contextFor(all: Segment[], full: string, want: number[]): string {
     : windowed;
 }
 
+const AUDIT_SYSTEM =
+  "You are a storyboard accuracy checker. You receive script lines (Hindi, Hinglish or English) each paired with the " +
+  "image prompt written for it, plus the character bible. For EACH numbered item decide whether the prompt draws " +
+  "THAT line's own moment.\n" +
+  "A prompt is WRONG when: it draws a noun that is only MENTIONED inside speech or thought (an army, soldiers, " +
+  "demons, a war, a crowd, a city, a past event) instead of the present speaker and listener; it shows an empty " +
+  "place, scenery or strangers while the line is someone speaking, thinking or reacting; it shows the wrong people, " +
+  "the wrong gender/age, or a different location than the surrounding lines establish; or it draws a different " +
+  "timestamp's event.\n" +
+  "A prompt is RIGHT when the people in frame, their action and the place match this line's own moment — for a " +
+  "spoken or inner line that means the speaker and listener in the established place, with the emotion on their " +
+  "faces and bodies.\n" +
+  "Reply with ONE plain line per item: the item's number, then ') ', then either exactly OK, or a complete corrected " +
+  "English image prompt of 42-58 words that fixes the fault (exact visible action, named cast with bible traits, and " +
+  "place in the FIRST sentence, then 4-6 environment details, camera angle and natural lighting; no art style, no " +
+  "text or writing in frame). Never output explanations, JSON, quotes or blank lines.";
+
+/**
+ * Reads every written prompt back against its own script line and returns the
+ * corrections.
+ *
+ * This is the check Hindi/Hinglish lines never received: `mentionsLine` can
+ * only compare Latin words, so a non-English line's prompt was accepted no
+ * matter what it depicted. Without this, a prompt that turned a warning about
+ * an army into a picture of soldiers was indistinguishable from a correct one,
+ * and re-rolling it only redrew the same wrong idea.
+ */
+async function auditPrompts(
+  bible: string,
+  all: Segment[],
+  wanted: number[],
+  written: Map<number, string>,
+): Promise<Map<number, string>> {
+  const items = wanted.filter((n) => written.has(n));
+  const out = new Map<number, string>();
+  if (items.length === 0) return out;
+
+  const listing = items
+    .map((n) => {
+      const s = all[n - 1] as Segment;
+      const before = all[n - 2]?.text?.trim();
+      return (
+        `${n}) SCRIPT LINE [${s.start}s]: ${s.text}\n` +
+        (before ? `   PREVIOUS LINE (establishes place and people): ${before.slice(0, 300)}\n` : "") +
+        `   PROMPT WRITTEN: ${clip(written.get(n) as string, 700)}`
+      );
+    })
+    .join("\n\n");
+
+  const raw = await textChat(
+    AUDIT_SYSTEM,
+    `CHARACTER BIBLE:\n${bible || "(none)"}\n\nITEMS TO CHECK (${items.length}):\n${listing}\n\n` +
+      `Answer with exactly ${items.length} lines, numbered ${items.join(", ")}.`,
+    { temperature: 0.2, maxOutputTokens: Math.min(16_000, 500 + items.length * 160), timeoutMs: 180_000, attempts: 1 },
+  );
+
+  const parsed = parseNumberedList(stripFences(raw), all.length);
+  parsed.forEach((v, idx) => {
+    const n = idx + 1;
+    if (typeof v !== "string" || !written.has(n)) return;
+    const text = v.trim();
+    if (!text || /^ok\b/i.test(text) || text.length < 40) return;
+    out.set(n, sanitizePrompt(enforceTimestampCast(text, all, n, bible)));
+  });
+  return out;
+}
+
+
 /**
  * Writes image prompts for lines `from`..`to` (1-based, inclusive).
  *
@@ -394,6 +469,13 @@ export async function writePrompts(
   from: number,
   to: number,
   requested?: number[],
+  /**
+   * Prompts the user has already rejected, keyed by line number. A retry that
+   * only changes the seed redraws the same wrong idea, so the rejected wording
+   * is handed back to the writer with an explicit instruction to reinterpret
+   * the line differently.
+   */
+  rejected?: Record<number, string>,
 ): Promise<string[]> {
   const wanted = requested?.length
     ? [...new Set(requested)].filter((n) => n >= from && n <= to).sort((a, b) => a - b)
@@ -433,6 +515,15 @@ export async function writePrompts(
       })
       .join("\n");
 
+    // Rejected wording is shown back so a retry cannot hand over a paraphrase
+    // of the same wrong reading of the line.
+    const rejectedBlock = want
+      .map((n) => {
+        const bad = rejected?.[n]?.trim();
+        return bad ? `${n}) REJECTED (do NOT repeat this reading): ${clip(bad, 400)}` : "";
+      })
+      .filter(Boolean)
+      .join("\n");
 
     return textChat(
       PROMPT_SYSTEM,
@@ -441,6 +532,11 @@ export async function writePrompts(
         `LINES TO DRAW — write ONE prompt for EACH of these ${want.length} lines and nothing else. ` +
         `Each prompt draws ONLY its own numbered line's moment, place and action, and must be ` +
         `recognisable as that line:\n${listing}\n\n` +
+        (rejectedBlock
+          ? `THESE PROMPTS WERE REJECTED AS WRONG FOR THEIR LINE. Re-read those lines, classify them ` +
+            `again (speech/thought vs visible event) and write a DIFFERENT, correct interpretation — ` +
+            `never a reworded version of the rejected text:\n${rejectedBlock}\n\n`
+          : "") +
         `Output exactly ${want.length} lines, numbered with each line's OWN number` +
         `${contiguous ? ` (${first} to ${last})` : ` (${want.join(", ")})`}, then ') ', ` +
         `then that same line's OWN start time copied exactly from the list above in square ` +
@@ -606,6 +702,27 @@ export async function writePrompts(
       );
     }
   }
+
+  // ACCURACY AUDIT (this is what Hindi/Hinglish lines never had). The word
+  // overlap gate above can only judge Latin-script lines, so a Hindi line's
+  // prompt used to be accepted unchecked — a prompt that drew soldiers for a
+  // conversation looked exactly as valid as a correct one. Every written
+  // prompt in the batch is now read back against its OWN line and corrected
+  // in a single extra request.
+  if (byNumber.size > 0) {
+    const t2 = Date.now();
+    try {
+      const fixes = await auditPrompts(bible, all, wanted, byNumber);
+      for (const [n, text] of fixes) byNumber.set(n, text);
+      console.log(
+        `[prompts] audit ${from}-${to}: ${fixes.size} corrected in ${Date.now() - t2}ms`,
+      );
+    } catch (e) {
+      if (e instanceof KilledError) throw e;
+      console.error(`[prompts] audit skipped for ${from}-${to}:`, e instanceof Error ? e.message : e);
+    }
+  }
+
 
   // Duplicate guard: two timestamps must never share one written prompt, or
   // one line's picture ends up standing in for another moment entirely.

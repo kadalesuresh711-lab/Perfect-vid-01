@@ -172,6 +172,30 @@ function hasPrompt(prompt?: string | null): boolean {
   return typeof prompt === "string" && prompt.trim().length > 0;
 }
 
+/**
+ * True when a "rewritten" prompt is really the rejected one again.
+ *
+ * Compared on normalised words so a reordered or lightly reworded copy of the
+ * same wrong scene is still caught; a genuine reinterpretation shares far less.
+ */
+function samePrompt(a: string, b: string): boolean {
+  const words = (s: string) =>
+    new Set(
+      s
+        .toLowerCase()
+        .replace(/[^a-z\s]/g, " ")
+        .split(/\s+/)
+        .filter((w) => w.length > 3),
+    );
+  const wa = words(a);
+  const wb = words(b);
+  if (wa.size === 0 || wb.size === 0) return a.trim() === b.trim();
+  let shared = 0;
+  for (const w of wa) if (wb.has(w)) shared++;
+  return shared / Math.min(wa.size, wb.size) >= 0.85;
+}
+
+
 /** Line numbers (1-based) that still have no prompt of their own. */
 function missingPromptLines(shots: Shot[]): number[] {
   return shots.filter((s) => !hasPrompt(s.prompt)).map((s) => s.index + 1);
@@ -1002,8 +1026,8 @@ function Index() {
       /** True = throw the old prompt away and ask the writer for a new one. */
       freshPrompt = false,
     ): Promise<boolean> => {
-      let prompt =
-        !freshPrompt && hasPrompt(shot.prompt) ? (shot.prompt as string).trim() : undefined;
+      const previous = hasPrompt(shot.prompt) ? (shot.prompt as string).trim() : undefined;
+      let prompt = !freshPrompt && previous ? previous : undefined;
       if (!prompt) {
         record(shot.index, { status: "prompting", error: undefined });
         try {
@@ -1018,6 +1042,10 @@ function Index() {
             bible,
             from,
             to: line,
+            // The rejected prompt goes back with the request; without it the
+            // writer reliably returned the same wrong reading of the line and
+            // only the seed changed.
+            ...(previous ? { rejected: { [String(line)]: previous } } : {}),
             segments: shotsRef.current.map((s) => ({
               index: s.index,
               start: s.start,
@@ -1027,6 +1055,9 @@ function Index() {
           });
           const slot = prompts[line - from] as string | undefined;
           prompt = hasPrompt(slot) ? (slot as string).trim() : undefined;
+          // A "new" prompt that is really the old one is not a fix. Say so
+          // instead of silently redrawing the same wrong scene.
+          if (prompt && previous && samePrompt(prompt, previous)) prompt = undefined;
         } catch {
           prompt = undefined;
         }
@@ -1034,7 +1065,7 @@ function Index() {
           record(shot.index, {
             status: "error",
             error: freshPrompt
-              ? "Scene repair could not write a verified replacement prompt"
+              ? "Scene repair returned the same description again — press Fix scene once more"
               : "No prompt could be written",
           });
           return false;
