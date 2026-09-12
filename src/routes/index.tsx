@@ -106,7 +106,7 @@ const SAMPLE = `(0:00)Henan की कहानी असुरा का उद
  * panels. Server calls therefore allow long, high-output requests instead of
  * splitting work into small batches.
  */
-const PROMPT_RANGE = 120;
+const PROMPT_RANGE = 20;
 
 /**
  * Image pipeline shape: TEN Pixazo keys, THREE images per key at a time.
@@ -115,7 +115,7 @@ const PROMPT_RANGE = 120;
  * them concurrently, spreading them across the key pool. With 24 lanes of four
  * prompts, up to 96 pictures are drawn in parallel.
  */
-const IMAGE_CONCURRENCY = 24;
+const IMAGE_CONCURRENCY = 8;
 const IMAGE_BATCH = 4;
 /**
  * The server already downloads and validates every finished image (complete
@@ -701,19 +701,16 @@ function Index() {
           }
         }
 
-        // STRICT GUARANTEE: one prompt per timestamp, always. Anything the model
-        // still refused after every repair round gets a deterministic prompt so
-        // no timestamp is ever skipped and no panel is left unwritten.
+        // Do not render a generic fallback for a line the writer could not
+        // interpret. Leaving it visibly failed prevents an unrelated picture
+        // from being mistaken for a successful timestamp.
         for (const s of list) {
           if (hasPrompt(s.prompt)) continue;
-          const before = list.find((o) => o.index === s.index - 1 && hasPrompt(o.prompt))?.prompt;
-          const prompt =
-            "Continue the established story scene at this exact next timestamp. Preserve the " +
-            "location, time of day, set layout and active characters, but show a distinct next " +
-            `action, pose, expression and camera angle for this script line: ${s.text}. ` +
-            (before ? `Previous scene continuity: ${(before as string).slice(0, 500)}` : "");
-          console.warn(`[client] line ${s.index + 1}: filled with a deterministic prompt`);
-          record(s.index, { prompt, status: "waiting", error: undefined });
+          record(s.index, {
+            prompt: undefined,
+            status: "error",
+            error: "Scene description needs a focused retry",
+          });
         }
         promptDone = list.length;
         tick(true);
@@ -928,13 +925,9 @@ function Index() {
   /**
    * Draws one panel again.
    *
-   * The prompt this panel already has is REUSED — a retry used to ask the text
-   * model for a brand new prompt first, and on a long script that request is
-   * slow and often blocked by the daily free-model quota, so the retry died
-   * before it ever reached the image renderer. Only a panel with no prompt at
-   * all asks for one, and even then a failure there is reported instead of
-   * killing the retry. Each attempt uses a fresh random seed and key slot, and
-   * a blank frame counts as a failure.
+     * Scene repair writes a focused replacement prompt from the target and its
+     * immediate context before drawing. A plain reroll may still reuse the old
+     * prompt when the user explicitly chooses it.
    */
   const redrawShot = useCallback(
     async (
@@ -972,13 +965,13 @@ function Index() {
         } catch {
           prompt = undefined;
         }
-        if (!prompt && freshPrompt && hasPrompt(shot.prompt)) {
-          // The writer is busy or rate limited: keep the panel's old prompt
-          // rather than losing it, and still re-roll the picture.
-          prompt = (shot.prompt as string).trim();
-        }
         if (!prompt) {
-          record(shot.index, { status: "error", error: "no prompt could be written" });
+          record(shot.index, {
+            status: "error",
+            error: freshPrompt
+              ? "Scene repair could not write a verified replacement prompt"
+              : "No prompt could be written",
+          });
           return false;
         }
       }
@@ -1059,7 +1052,7 @@ function Index() {
    * `freshPrompt` = the "Retry prompt" button: the panel's written prompt is
    * thrown away and the writer describes that timestamp again before drawing.
    */
-  async function retryOne(index: number, freshPrompt = false) {
+  async function retryOne(index: number, freshPrompt = true) {
     if (retrying.includes(index)) return;
     setRetrying((prev) => [...prev, index]);
     const key = scriptKey(script);
@@ -1471,21 +1464,21 @@ function Index() {
                       </span>
                       <button
                         type="button"
-                        title="Draw this panel again from the same prompt"
-                        onClick={() => void retryOne(s.index)}
+                         title="Rewrite this timestamp's scene description, then draw it again"
+                         onClick={() => void retryOne(s.index, true)}
                         disabled={retrying.includes(s.index)}
                         className="border-2 border-foreground px-2 py-0.5 font-semibold uppercase hover:bg-foreground hover:text-background disabled:opacity-40"
                       >
-                        Retry
+                         Fix scene
                       </button>
                       <button
                         type="button"
-                        title="Write a brand new prompt for this moment, then draw it"
-                        onClick={() => void retryOne(s.index, true)}
+                         title="Draw again from the existing scene description"
+                         onClick={() => void retryOne(s.index, false)}
                         disabled={retrying.includes(s.index)}
                         className="border-2 border-foreground px-2 py-0.5 font-semibold uppercase hover:bg-foreground hover:text-background disabled:opacity-40"
                       >
-                        Retry prompt
+                         Reroll
                       </button>
                     </span>
                   </div>
@@ -1501,6 +1494,14 @@ function Index() {
                   <p className="border-t-2 border-foreground p-3 text-xs text-muted-foreground">
                     {s.text}
                   </p>
+                   {s.prompt && (
+                     <details className="border-t-2 border-foreground px-3 py-2 text-xs">
+                       <summary className="cursor-pointer font-mono font-semibold uppercase">
+                         Inspect scene description
+                       </summary>
+                       <p className="mt-2 text-muted-foreground">{s.prompt}</p>
+                     </details>
+                   )}
                 </article>
               ))}
             </section>

@@ -41,8 +41,11 @@ export function pickKey(keys: string[], slot: number, attempt = 0): string {
 /* Ten images per key at a time                                        */
 /* ------------------------------------------------------------------ */
 
-/** How many images one key may render simultaneously (10 per key -> 100 total). */
-export const PER_KEY_CONCURRENCY = 10;
+/**
+ * Keep provider load conservative. Saturating a free image key with ten
+ * simultaneous renders caused throttling and inconsistent upstream results.
+ */
+export const PER_KEY_CONCURRENCY = 2;
 
 /** In-flight renders per key. */
 const inFlight = new Map<string, number>();

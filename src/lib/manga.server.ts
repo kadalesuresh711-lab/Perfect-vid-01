@@ -565,7 +565,8 @@ export async function writePrompts(
 
   };
 
-  // ONE request for the whole range.
+  // One compact request for the range. The browser deliberately keeps ranges
+  // small so the writer can give every timestamp enough attention.
   const t0 = Date.now();
   console.log(`[prompts] START lines ${from}-${to} (${count} lines)`);
   try {
@@ -634,13 +635,12 @@ export async function writePrompts(
       continue;
     }
 
-    // STRICT RULE: every requested timestamp leaves this function with exactly
-    // one non-empty prompt. No extra model calls here — a deterministic prompt
-    // built from this line (or its nearest English neighbour) fills the slot.
-    console.warn(`writePrompts: line ${n} filled with a deterministic prompt`);
-    built.push(
-      sanitizePrompt(enforceTimestampCast(guaranteedPrompt(all, n, bible, byNumber), all, n, bible)),
-    );
+    // Never silently turn a failed Hindi/Hinglish interpretation into a generic
+    // nearby scene. An empty slot is safer: the browser's repair pass asks the
+    // writer again with a much smaller neighbourhood. Generic fallback prompts
+    // were the direct cause of plausible-looking but incorrect panels.
+    console.warn(`writePrompts: line ${n} needs a focused repair`);
+    built.push("");
 
   }
 
@@ -1361,12 +1361,15 @@ export function hasPeople(prompt: string, bible?: string): boolean {
  * the style words never name eyes or faces. Style is restated compactly at
  * the end, inside the T5 window.
  */
-const IMAGE_PROMPT_BUDGET = 1500;
-const SCENE_BUDGET = 560;
+const IMAGE_PROMPT_BUDGET = 1300;
+// Flux CLIP gives the first ~300 characters the strongest influence. Keep the
+// exact action inside that window rather than allowing decorative detail to
+// displace it.
+const SCENE_BUDGET = 300;
 // The lock used to be clipped at 150 chars, which cut most characters' traits
 // (clothing colours sit at the END of a bible line) — that truncation is the
 // main reason outfits and minor looks drifted panel to panel.
-const LOCK_BUDGET = 520;
+const LOCK_BUDGET = 440;
 
 /** Trims to a length without cutting mid-word. */
 function clip(s: string, max: number): string {
@@ -1398,7 +1401,7 @@ export function composeImagePrompt(prompt: string, bible?: string, line?: string
   // Scene FIRST: the subject, place and action of this exact line are what
   // both encoders must see before anything else.
   const parts = [
-    `${STYLE_LEAD} this exact moment: ${clip(fixed, SCENE_BUDGET)}`,
+    `${STYLE_LEAD} ${clip(fixed, SCENE_BUDGET)}`,
     lock,
     peopled
       ? "only the described people, each drawn once, whole separate bodies"
