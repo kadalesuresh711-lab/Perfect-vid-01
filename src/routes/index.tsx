@@ -231,6 +231,21 @@ function isCancellation(e: unknown): boolean {
 }
 
 /**
+ * Final safety net. Dozens of requests are in flight when Insta Kill is
+ * pressed; a lane that rejects after its owner has already stopped listening
+ * would otherwise reach the browser as an uncaught error and blank the page.
+ */
+function useSwallowCancellations() {
+  useEffect(() => {
+    const onRejection = (ev: PromiseRejectionEvent) => {
+      if (isCancellation(ev.reason)) ev.preventDefault();
+    };
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => window.removeEventListener("unhandledrejection", onRejection);
+  }, []);
+}
+
+/**
  * A drawing round trip is never allowed to hang the lane forever. The server
  * retries a panel up to six times at 60s each, so anything past this ceiling is
  * a stuck request: the batch fails, the panels go back on the queue and another
