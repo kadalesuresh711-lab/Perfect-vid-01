@@ -172,6 +172,30 @@ function hasPrompt(prompt?: string | null): boolean {
   return typeof prompt === "string" && prompt.trim().length > 0;
 }
 
+/**
+ * True when a "rewritten" prompt is really the rejected one again.
+ *
+ * Compared on normalised words so a reordered or lightly reworded copy of the
+ * same wrong scene is still caught; a genuine reinterpretation shares far less.
+ */
+function samePrompt(a: string, b: string): boolean {
+  const words = (s: string) =>
+    new Set(
+      s
+        .toLowerCase()
+        .replace(/[^a-z\s]/g, " ")
+        .split(/\s+/)
+        .filter((w) => w.length > 3),
+    );
+  const wa = words(a);
+  const wb = words(b);
+  if (wa.size === 0 || wb.size === 0) return a.trim() === b.trim();
+  let shared = 0;
+  for (const w of wa) if (wb.has(w)) shared++;
+  return shared / Math.min(wa.size, wb.size) >= 0.85;
+}
+
+
 /** Line numbers (1-based) that still have no prompt of their own. */
 function missingPromptLines(shots: Shot[]): number[] {
   return shots.filter((s) => !hasPrompt(s.prompt)).map((s) => s.index + 1);
