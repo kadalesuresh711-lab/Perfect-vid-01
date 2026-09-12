@@ -225,11 +225,14 @@ const PROMPT_SYSTEM =
   "RULES:\n" +
   "- ONE LINE = ONE IMAGE (absolute): exactly one prompt per requested number, in the same order, never merged, never " +
   "split, never skipped, never a placeholder. Each prompt must be visibly DIFFERENT from its neighbours.\n" +
-  "- LITERAL SUBJECT (the most important rule): draw the subject of THAT line and nothing else. If the line is " +
-  "narration, exposition, history or backstory about demons, a massacre, a city, an army, a special force, a god, a " +
-  "war, a crowd or a phenomenon, then the image IS that thing, shown in ITS OWN place and time — demons attacking " +
-  "Busan becomes demons attacking Busan; soldiers mobilising becomes soldiers mobilising. Never fall back on the " +
-  "main characters standing somewhere just because the previous line was there.\n" +
+  "- LITERAL SUBJECT (the most important rule): draw the visible event happening at THAT timestamp and nothing else. " +
+  "First classify the line. If a named person says, tells, explains, warns, asks, answers, thinks, remembers or learns " +
+  "information, show that present speaker/listener interaction and its emotion — DO NOT illustrate nouns inside their " +
+  "speech or thought as if those events are happening now. For example, a woman warning someone about an army shows " +
+  "the woman warning them in the established room, not a lineup of soldiers. Only draw demons, a massacre, a city, " +
+  "an army, a war or a past event directly when the timestamp explicitly presents it as visible action, a clearly " +
+  "introduced flashback, or detached historical narration with no present speaker. Never replace a conversation with " +
+  "the topic being discussed.\n" +
   "- SCENE CONTINUITY: default to the same location, time and active cast as the previous line. Change them ONLY when " +
   "the current line explicitly names a different location/time/cast or clearly begins a flashback, memory, dream or " +
   "separate narrated event. Keep continuing actions spatially coherent: the same room layout, doors, furniture and " +
@@ -290,7 +293,7 @@ const PROMPT_SYSTEM =
   "reaction close-up, a detail of the same scene) or the person's expression. NEVER invent a new location, new " +
   "characters, a new era or an unrelated event for a short line, and never jump to a scene the script does not have. " +
   "When such a line is marked with CONTEXT below, take its place and people from that context verbatim.\n" +
-  "- 55 to 80 words each — every word visual and load-bearing, no filler. English only. The image engine only reads a short prompt, so a longer one loses its ending.\n" +
+  "- 42 to 58 words each — put the exact visible action, named cast and place in the FIRST sentence. Keep every word visual and load-bearing. English only. The image engine gives the beginning much more weight, so never open with mood, history or explanation.\n" +
   "OUTPUT FORMAT (strict about the shape, nothing else): one plain line per requested script line, each starting with " +
   "that script line's own number, then ') ', then the whole prompt on that same single line. Example:\n" +
   "37) In the sunlit courtyard, Henan, a male 17-year-old boy ...\n38) Close-up of ...\n" +
@@ -445,7 +448,7 @@ export async function writePrompts(
         `The number and the start time must both belong to the line the prompt draws. Nothing else.`,
       {
         temperature: temp,
-        maxOutputTokens: Math.min(32_000, 800 + want.length * 200),
+        maxOutputTokens: Math.min(32_000, 700 + want.length * 160),
         timeoutMs: 240_000,
         attempts: 2,
       },
@@ -1365,11 +1368,11 @@ const IMAGE_PROMPT_BUDGET = 1300;
 // Flux CLIP gives the first ~300 characters the strongest influence. Keep the
 // exact action inside that window rather than allowing decorative detail to
 // displace it.
-const SCENE_BUDGET = 300;
+const SCENE_BUDGET = 520;
 // The lock used to be clipped at 150 chars, which cut most characters' traits
 // (clothing colours sit at the END of a bible line) — that truncation is the
 // main reason outfits and minor looks drifted panel to panel.
-const LOCK_BUDGET = 440;
+const LOCK_BUDGET = 520;
 
 /** Trims to a length without cutting mid-word. */
 function clip(s: string, max: number): string {
@@ -1391,17 +1394,53 @@ const STYLE_TAIL =
   "polished 2D Japanese anime animation frame, crisp uniform ink outlines, flat cel colour fills, " +
   "hand-painted anime background, fully finished artwork drawn edge to edge";
 
+/**
+ * A compact identity anchor that fits in Flux CLIP's strongest opening window.
+ *
+ * The previous full lock was appended after the scene. T5 could still read it,
+ * but CLIP had already spent its short window on the action, so a named person
+ * was redrawn as a different face, gender or uniform from panel to panel. Keep
+ * only concrete visible traits here; the full lock remains later for T5.
+ */
+function characterAnchor(prompt: string, bible?: string): string {
+  if (!bible) return "";
+  const matched = parseBible(bible).filter((entry) =>
+    new RegExp(`\\b${escapeRe(entry.name)}\\b`, "i").test(prompt),
+  );
+  if (matched.length === 0) return "";
+  return matched
+    .slice(0, 4)
+    .map((entry) => `${entry.name} always looks exactly like: ${clip(entry.traits, 135)}`)
+    .join("; ");
+}
+
+/** Keep the timestamp's decisive place/subject/action sentence at the front. */
+function openingBeat(prompt: string): { lead: string; rest: string } {
+  const firstStop = prompt.search(/[.!?](?:\s|$)/);
+  const end = firstStop >= 80 ? firstStop + 1 : Math.min(prompt.length, 210);
+  return {
+    lead: clip(prompt.slice(0, end), 220),
+    rest: prompt.slice(end).trim(),
+  };
+}
+
 export function composeImagePrompt(prompt: string, bible?: string, line?: string): string {
   const withCast = enforceLineCast(prompt, line, bible);
   const fixed = enforceGender(sanitizePrompt(withCast), bible);
   const peopled = hasPeople(fixed, bible);
+  const beat = openingBeat(fixed);
+  const anchor = peopled ? characterAnchor(fixed, bible) : "";
   // Character lock only matters when someone is actually in frame.
   const lock = peopled ? clip(characterLock(fixed, bible), LOCK_BUDGET) : "";
 
-  // Scene FIRST: the subject, place and action of this exact line are what
-  // both encoders must see before anything else.
+  // The opening now contains BOTH the timestamp's decisive action and compact
+  // immutable identities. Previously the identity lock began after character
+  // ~300, outside CLIP's effective window; changing the seed therefore changed
+  // faces and uniforms even though the later lock text was identical.
   const parts = [
-    `${STYLE_LEAD} ${clip(fixed, SCENE_BUDGET)}`,
+    `${STYLE_LEAD} ${beat.lead}`,
+    anchor,
+    clip(beat.rest, Math.max(120, SCENE_BUDGET - beat.lead.length)),
     lock,
     peopled
       ? "only the described people, each drawn once, whole separate bodies"
@@ -1488,8 +1527,8 @@ export async function generateImage(
           },
           body: JSON.stringify({
             prompt: body,
-            // Speed over maximum quality: fewer steps at a slightly smaller 16:9
-            // size (1344x768) renders noticeably faster with good detail.
+            // Flux Schnell is distilled for four steps; extra steps do not fix
+            // identity drift. Prompt order above is the quality control.
             num_steps: 4,
             // a fresh seed each attempt, so a blank frame is never re-rolled identically
             seed: seed + attempt * 977,
