@@ -515,6 +515,15 @@ export async function writePrompts(
       })
       .join("\n");
 
+    // Rejected wording is shown back so a retry cannot hand over a paraphrase
+    // of the same wrong reading of the line.
+    const rejectedBlock = want
+      .map((n) => {
+        const bad = rejected?.[n]?.trim();
+        return bad ? `${n}) REJECTED (do NOT repeat this reading): ${clip(bad, 400)}` : "";
+      })
+      .filter(Boolean)
+      .join("\n");
 
     return textChat(
       PROMPT_SYSTEM,
@@ -523,6 +532,11 @@ export async function writePrompts(
         `LINES TO DRAW — write ONE prompt for EACH of these ${want.length} lines and nothing else. ` +
         `Each prompt draws ONLY its own numbered line's moment, place and action, and must be ` +
         `recognisable as that line:\n${listing}\n\n` +
+        (rejectedBlock
+          ? `THESE PROMPTS WERE REJECTED AS WRONG FOR THEIR LINE. Re-read those lines, classify them ` +
+            `again (speech/thought vs visible event) and write a DIFFERENT, correct interpretation — ` +
+            `never a reworded version of the rejected text:\n${rejectedBlock}\n\n`
+          : "") +
         `Output exactly ${want.length} lines, numbered with each line's OWN number` +
         `${contiguous ? ` (${first} to ${last})` : ` (${want.join(", ")})`}, then ') ', ` +
         `then that same line's OWN start time copied exactly from the list above in square ` +
