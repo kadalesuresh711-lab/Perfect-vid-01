@@ -1002,8 +1002,8 @@ function Index() {
       /** True = throw the old prompt away and ask the writer for a new one. */
       freshPrompt = false,
     ): Promise<boolean> => {
-      let prompt =
-        !freshPrompt && hasPrompt(shot.prompt) ? (shot.prompt as string).trim() : undefined;
+      const previous = hasPrompt(shot.prompt) ? (shot.prompt as string).trim() : undefined;
+      let prompt = !freshPrompt && previous ? previous : undefined;
       if (!prompt) {
         record(shot.index, { status: "prompting", error: undefined });
         try {
@@ -1018,6 +1018,10 @@ function Index() {
             bible,
             from,
             to: line,
+            // The rejected prompt goes back with the request; without it the
+            // writer reliably returned the same wrong reading of the line and
+            // only the seed changed.
+            ...(previous ? { rejected: { [String(line)]: previous } } : {}),
             segments: shotsRef.current.map((s) => ({
               index: s.index,
               start: s.start,
@@ -1027,6 +1031,9 @@ function Index() {
           });
           const slot = prompts[line - from] as string | undefined;
           prompt = hasPrompt(slot) ? (slot as string).trim() : undefined;
+          // A "new" prompt that is really the old one is not a fix. Say so
+          // instead of silently redrawing the same wrong scene.
+          if (prompt && previous && samePrompt(prompt, previous)) prompt = undefined;
         } catch {
           prompt = undefined;
         }
@@ -1034,7 +1041,7 @@ function Index() {
           record(shot.index, {
             status: "error",
             error: freshPrompt
-              ? "Scene repair could not write a verified replacement prompt"
+              ? "Scene repair returned the same description again — press Fix scene once more"
               : "No prompt could be written",
           });
           return false;
