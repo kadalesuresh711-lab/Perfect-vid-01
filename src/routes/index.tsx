@@ -719,6 +719,7 @@ function Index() {
                 if (hasPrompt(slot)) {
                   const prompt = (slot as string).trim();
                   record(s.index, { prompt, status: "waiting", error: undefined });
+                  if (!s.url) queue.push({ seg: s as Shot, prompt, attempts: 0 });
                   return;
                 }
                 record(s.index, { prompt: undefined, status: "error", error: "prompt missing" });
@@ -906,25 +907,12 @@ function Index() {
         }
       };
 
-      // Order is strict: EVERY line's prompt is written (including the repair
-      // sweep) before a single picture is requested. Drawing used to run at the
-      // same time as writing, so panels whose prompt had not been written yet
-      // were sent to the renderer and came back failed.
-      await promptStage;
-      promptingDone = true;
-
-      // Rebuild the render queue from the finished prompts so each timestamp is
-      // queued exactly once, then start drawing immediately — no extra waiting.
-      queue.length = 0;
-      for (const s of list) {
-        if (hasPrompt(s.prompt) && !s.url) {
-          queue.push({ seg: s, prompt: (s.prompt as string).trim(), attempts: 0 });
-        }
-      }
-      console.log(`[client] prompts complete · starting image stage with ${queue.length} panels`);
-      tick(true);
-
-      if (!cancelRef.current && queue.length > 0) {
+      // Drawing runs AT THE SAME TIME as writing: every prompt that lands is
+      // pushed onto the shared queue and picked up immediately. Workers idle
+      // (they never exit) until promptingDone, so no panel is ever sent to the
+      // renderer before its own prompt exists.
+      const runLanes = async () => {
+        if (cancelRef.current) return;
         // allSettled, never all: when one lane is cancelled the others must
         // still be awaited here, otherwise their later rejection escapes as an
         // unhandled error and blanks the page.
@@ -935,6 +923,24 @@ function Index() {
           (l) => l.status === "rejected" && !isCancellation(l.reason),
         ) as PromiseRejectedResult | undefined;
         if (fatal) throw fatal.reason;
+      };
+
+      const imageStage = runLanes();
+      await promptStage;
+      promptingDone = true;
+      tick(true);
+      await imageStage;
+
+      // Safety net: anything that gained a prompt but never got drawn (for
+      // example a lane that exited just as a repair prompt landed) is drawn now.
+      if (!cancelRef.current) {
+        queue.length = 0;
+        for (const s of list) {
+          if (hasPrompt(s.prompt) && !s.url) {
+            queue.push({ seg: s, prompt: (s.prompt as string).trim(), attempts: 0 });
+          }
+        }
+        if (queue.length > 0) await runLanes();
       }
 
 
