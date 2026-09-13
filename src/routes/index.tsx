@@ -125,6 +125,8 @@ const IMAGE_BATCH = 4;
  */
 const CLIENT_BLANK_CHECK = false;
 const PROMPT_IDLE_TIMEOUT_MS = 150_000;
+/** Hard ceiling for one prompt batch, heartbeats included. */
+const PROMPT_TOTAL_DEADLINE_MS = 12 * 60_000;
 /** Panels shown in the preview grid before "show all" (a 2h script has 1000+). */
 const PREVIEW_LIMIT = 60;
 
