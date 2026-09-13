@@ -138,7 +138,7 @@ function scriptKey(script: string): string {
   // Bump whenever prompt semantics change. Without this, IndexedDB restores old
   // bad prompts and images for the same script, making a quality fix appear to
   // have done nothing even after starting generation again.
-  return `manga:q4:${script.length}:${h}`;
+  return `manga:q3:${script.length}:${h}`;
 }
 
 type Saved = SavedRun<Shot>;
@@ -852,7 +852,6 @@ function Index() {
                     slot: keyTick++,
                     line: g.seg.text,
                     timestamp: `${g.seg.start}s-${g.seg.end}s`,
-                    previousPrompt: list[g.seg.index - 1]?.prompt,
                   })),
                 },
                 signal,
@@ -883,7 +882,6 @@ function Index() {
                             bible: b,
                             slot: keyTick++,
                             line: job?.seg.text,
-                            previousPrompt: job ? list[job.seg.index - 1]?.prompt : undefined,
                             ...(job ? { timestamp: `${job.seg.start}s-${job.seg.end}s` } : {}),
                           },
                           signal,
@@ -1088,7 +1086,6 @@ function Index() {
                 bible,
                 line: shot.text,
                 timestamp: `${shot.start}s-${shot.end}s`,
-                previousPrompt: shotsRef.current[shot.index - 1]?.prompt,
               },
               signal,
             }),
