@@ -107,7 +107,7 @@ const SAMPLE = `(0:00)Henan की कहानी असुरा का उद
 // Smaller groups keep the writer focused on each timestamp. Drawing still
 // starts after the first group, so this improves fidelity without restoring the
 // old "wait for every prompt" behaviour.
-const PROMPT_RANGE = 20;
+const PROMPT_RANGE = 15;
 
 /**
  * Image pipeline shape: TEN Pixazo keys, THREE images per key at a time.
