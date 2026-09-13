@@ -107,7 +107,7 @@ const SAMPLE = `(0:00)Henan की कहानी असुरा का उद
 // Smaller groups keep the writer focused on each timestamp. Drawing still
 // starts after the first group, so this improves fidelity without restoring the
 // old "wait for every prompt" behaviour.
-const PROMPT_RANGE = 8;
+const PROMPT_RANGE = 20;
 
 /**
  * Image pipeline shape: TEN Pixazo keys, THREE images per key at a time.
@@ -124,7 +124,9 @@ const IMAGE_BATCH = 4;
  * again in the page doubled the traffic per panel for no extra signal.
  */
 const CLIENT_BLANK_CHECK = false;
-const PROMPT_IDLE_TIMEOUT_MS = 45_000;
+const PROMPT_IDLE_TIMEOUT_MS = 150_000;
+/** Hard ceiling for one prompt batch, heartbeats included. */
+const PROMPT_TOTAL_DEADLINE_MS = 12 * 60_000;
 /** Panels shown in the preview grid before "show all" (a 2h script has 1000+). */
 const PREVIEW_LIMIT = 60;
 
@@ -275,11 +277,19 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
       PROMPT_IDLE_TIMEOUT_MS,
     );
   };
+  // Heartbeats keep the idle timer alive forever, so a batch whose upstream
+  // work never finishes would hang the run. This hard deadline ends it and the
+  // range simply retries.
+  const deadlineTimer = window.setTimeout(
+    () => controller.abort("Prompt batch took too long"),
+    PROMPT_TOTAL_DEADLINE_MS,
+  );
   let cleaned = false;
   const cleanup = () => {
     if (cleaned) return;
     cleaned = true;
     window.clearTimeout(idleTimer);
+    window.clearTimeout(deadlineTimer);
     untrack();
   };
   try {

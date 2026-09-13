@@ -36,7 +36,7 @@ const MIN_GAP_MS = 1_200;
  */
 const MAX_IN_FLIGHT = 1;
 /** Longest a call may wait for its turn before giving up instead of hanging. */
-const MAX_QUEUE_WAIT_MS = 120_000;
+const MAX_QUEUE_WAIT_MS = 420_000;
 /**
  * No retry ever waits longer than this, whatever the provider asks for in a
  * Retry-After header. A provider-supplied multi-minute wait is what kept one
