@@ -275,11 +275,19 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
       PROMPT_IDLE_TIMEOUT_MS,
     );
   };
+  // Heartbeats keep the idle timer alive forever, so a batch whose upstream
+  // work never finishes would hang the run. This hard deadline ends it and the
+  // range simply retries.
+  const deadlineTimer = window.setTimeout(
+    () => controller.abort("Prompt batch took too long"),
+    PROMPT_TOTAL_DEADLINE_MS,
+  );
   let cleaned = false;
   const cleanup = () => {
     if (cleaned) return;
     cleaned = true;
     window.clearTimeout(idleTimer);
+    window.clearTimeout(deadlineTimer);
     untrack();
   };
   try {
