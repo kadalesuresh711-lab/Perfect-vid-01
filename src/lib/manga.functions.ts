@@ -58,8 +58,6 @@ export const promptsForRange = createServerFn({ method: "POST" })
         from: z.number().int().min(1),
         to: z.number().int().min(1),
         segments: z.array(SegmentSchema).min(1),
-        /** Line number -> prompt the user rejected, so a retry cannot repeat it. */
-        rejected: z.record(z.string(), z.string()).optional(),
         runAt: z.number().optional(),
       })
       .parse(d),
@@ -69,17 +67,7 @@ export const promptsForRange = createServerFn({ method: "POST" })
     // right away, so the API key it holds is free for the next job.
     const signal = getRequest().signal;
     return withRun(data.runAt, async () => {
-      const rejected = data.rejected
-        ? Object.fromEntries(Object.entries(data.rejected).map(([k, v]) => [Number(k), v]))
-        : undefined;
-      const prompts = await writePrompts(
-        data.bible,
-        data.segments,
-        data.from,
-        data.to,
-        undefined,
-        rejected,
-      );
+      const prompts = await writePrompts(data.bible, data.segments, data.from, data.to);
       return { from: data.from, to: data.to, prompts, engine: engineStatus() };
     }, signal);
   });
