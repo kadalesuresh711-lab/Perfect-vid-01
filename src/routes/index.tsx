@@ -677,18 +677,20 @@ function Index() {
           if (targets.length === 0) continue;
           targets.forEach((s) => record(s.index, { status: "prompting" }));
           try {
+            const wanted = targets.map((s) => s.index + 1);
             const res = await getPrompts({
               bible: b,
               from: range.from,
               to: range.to,
+              lines: wanted,
               segments: allSegments,
             });
             const prompts = res.prompts as string[];
-            targets.forEach((s) => {
-              // Slot-aligned: prompts[i] belongs to this exact line number. An
-              // empty slot stays empty (never inherits a neighbour's prompt) and
-              // is picked up again by the repair sweep below.
-              const slot = prompts[s.index + 1 - range.from];
+            targets.forEach((s, position) => {
+              // Slot-aligned: prompts[i] belongs to this exact requested
+              // timestamp. An empty slot stays empty (never inherits a
+              // neighbour's prompt) and is picked up by the repair sweep below.
+              const slot = prompts[position];
               if (!hasPrompt(slot)) {
                 record(s.index, { prompt: undefined, status: "error", error: "prompt missing" });
                 return;
