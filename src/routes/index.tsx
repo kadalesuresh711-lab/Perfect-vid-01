@@ -107,7 +107,7 @@ const SAMPLE = `(0:00)Henan की कहानी असुरा का उद
 // Smaller groups keep the writer focused on each timestamp. Drawing still
 // starts after the first group, so this improves fidelity without restoring the
 // old "wait for every prompt" behaviour.
-const PROMPT_RANGE = 20;
+const PROMPT_RANGE = 15;
 
 /**
  * Image pipeline shape: TEN Pixazo keys, THREE images per key at a time.
@@ -601,13 +601,19 @@ function Index() {
       // use a heartbeat stream, so the published connection stays active while
       // Agnes writes each full 120-line answer.
       const needPrompts = pending.filter((s) => !hasPrompt(s.prompt));
+      // Batches follow the TIMESTAMPS themselves: 15 consecutive timestamps per
+      // pass, never 15 scattered line numbers spanning a wide range. A group of
+      // neighbouring timestamps keeps the writer inside one continuous scene,
+      // which is what keeps each picture faithful to its own moment.
       const ranges: { from: number; to: number }[] = [];
-      for (let i = 0; i < needPrompts.length; i += PROMPT_RANGE) {
-        const slice = needPrompts.slice(i, i + PROMPT_RANGE);
-        ranges.push({
-          from: (slice[0] as Shot).index + 1,
-          to: (slice[slice.length - 1] as Shot).index + 1,
-        });
+      const ordered = [...list].sort((a, b) => a.index - b.index);
+      for (let i = 0; i < ordered.length; i += PROMPT_RANGE) {
+        const slice = ordered.slice(i, i + PROMPT_RANGE);
+        const first = slice[0];
+        const last = slice[slice.length - 1];
+        if (!first || !last) continue;
+        if (!slice.some((s) => !hasPrompt(s.prompt) && (s.status !== "done" || !s.url))) continue;
+        ranges.push({ from: first.index + 1, to: last.index + 1 });
       }
 
       let promptDone = total - needPrompts.length;
@@ -671,18 +677,20 @@ function Index() {
           if (targets.length === 0) continue;
           targets.forEach((s) => record(s.index, { status: "prompting" }));
           try {
+            const wanted = targets.map((s) => s.index + 1);
             const res = await getPrompts({
               bible: b,
               from: range.from,
               to: range.to,
+              lines: wanted,
               segments: allSegments,
             });
             const prompts = res.prompts as string[];
-            targets.forEach((s) => {
-              // Slot-aligned: prompts[i] belongs to this exact line number. An
-              // empty slot stays empty (never inherits a neighbour's prompt) and
-              // is picked up again by the repair sweep below.
-              const slot = prompts[s.index + 1 - range.from];
+            targets.forEach((s, position) => {
+              // Slot-aligned: prompts[i] belongs to this exact requested
+              // timestamp. An empty slot stays empty (never inherits a
+              // neighbour's prompt) and is picked up by the repair sweep below.
+              const slot = prompts[position];
               if (!hasPrompt(slot)) {
                 record(s.index, { prompt: undefined, status: "error", error: "prompt missing" });
                 return;
