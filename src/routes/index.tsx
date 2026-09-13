@@ -601,13 +601,19 @@ function Index() {
       // use a heartbeat stream, so the published connection stays active while
       // Agnes writes each full 120-line answer.
       const needPrompts = pending.filter((s) => !hasPrompt(s.prompt));
+      // Batches follow the TIMESTAMPS themselves: 15 consecutive timestamps per
+      // pass, never 15 scattered line numbers spanning a wide range. A group of
+      // neighbouring timestamps keeps the writer inside one continuous scene,
+      // which is what keeps each picture faithful to its own moment.
       const ranges: { from: number; to: number }[] = [];
-      for (let i = 0; i < needPrompts.length; i += PROMPT_RANGE) {
-        const slice = needPrompts.slice(i, i + PROMPT_RANGE);
-        ranges.push({
-          from: (slice[0] as Shot).index + 1,
-          to: (slice[slice.length - 1] as Shot).index + 1,
-        });
+      const ordered = [...list].sort((a, b) => a.index - b.index);
+      for (let i = 0; i < ordered.length; i += PROMPT_RANGE) {
+        const slice = ordered.slice(i, i + PROMPT_RANGE);
+        const first = slice[0];
+        const last = slice[slice.length - 1];
+        if (!first || !last) continue;
+        if (!slice.some((s) => !hasPrompt(s.prompt) && (s.status !== "done" || !s.url))) continue;
+        ranges.push({ from: first.index + 1, to: last.index + 1 });
       }
 
       let promptDone = total - needPrompts.length;
