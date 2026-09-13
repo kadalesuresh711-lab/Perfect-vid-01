@@ -449,8 +449,8 @@ export async function writePrompts(
       {
         temperature: temp,
         maxOutputTokens: Math.min(32_000, 700 + want.length * 160),
-        timeoutMs: 240_000,
-        attempts: 2,
+        timeoutMs: 600_000,
+        attempts: 3,
       },
     );
   };
